@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dente 3D com Preparo por Zonas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: foto grande à esquerda, painel de medição à direita; empilha no celular.
+   Linguagem: Apple (tipografia do sistema, superfícies agrupadas, controles segmentados, azul do sistema). */
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #f2f2f7;
+  --line: rgba(60, 60, 67, 0.16);
+  --fg: #1d1d1f;
+  --fg-dim: #6e6e73;
+  --accent: #0071e3;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(0, 113, 227, 0.1);
+  --seg-thumb: #ffffff;
+  --card-c: #8e8e93;
+  --tooth-c: #ff9f0a;
+  --ref-c: #30b0c7;
+  --ok: #248a3d;
+  --warn: #b25000;
+  --bad: #d70015;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.06);
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  --font-data: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --line: rgba(84, 84, 88, 0.55);
+    --fg: #f5f5f7; --fg-dim: #98989d; --accent: #0a84ff; --accent-ink: #ffffff; --accent-soft: rgba(10, 132, 255, 0.2);
+    --seg-thumb: #636366; --card-c: #aeaeb2; --tooth-c: #ff9f0a; --ref-c: #64d2ff;
+    --ok: #30d158; --warn: #ff9f0a; --bad: #ff453a; --shadow: none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --line: rgba(84, 84, 88, 0.55);
+  --fg: #f5f5f7; --fg-dim: #98989d; --accent: #0a84ff; --accent-ink: #ffffff; --accent-soft: rgba(10, 132, 255, 0.2);
+  --seg-thumb: #636366; --card-c: #aeaeb2; --tooth-c: #ff9f0a; --ref-c: #64d2ff;
+  --ok: #30d158; --warn: #ff9f0a; --bad: #ff453a; --shadow: none;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.47 var(--font-body); -webkit-font-smoothing: antialiased;
+  padding-block: 40px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1160px; margin: 0 auto; display: grid; gap: 24px; }
+header h1 { font: 700 40px/1.08 var(--font-display); letter-spacing: -0.022em; margin: 0 0 10px; text-wrap: balance; }
+header p { margin: 0; color: var(--fg-dim); font-size: 17px; line-height: 1.47; max-width: 56ch; }
+.example-banner {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 12px 16px; border-radius: 14px; color: var(--fg);
+  background: var(--accent-soft); font-size: 14px;
+}
+.example-banner[hidden] { display: none; }
+.app { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 880px) { .app { grid-template-columns: minmax(0, 1fr); } header h1 { font-size: 34px; } }
+.col { display: grid; gap: 20px; min-width: 0; }
+.panel { background: var(--surface); border-radius: 20px; padding: 22px; min-width: 0; box-shadow: var(--shadow); }
+.panel h2 { font: 600 19px/1.2 var(--font-display); letter-spacing: -0.012em; margin: 0 0 16px; color: var(--fg); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+button, .btn, select, input[type="text"], input[type="number"] {
+  font: inherit; color: var(--fg); background: var(--surface-2); border: 0;
+  border-radius: 10px; padding: 8px 14px; min-height: 40px;
+}
+button, .btn {
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--accent-soft); color: var(--accent); font-weight: 500; border-radius: 980px; padding: 8px 18px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+button:hover, .btn:hover { opacity: 0.82; }
+button:active, .btn:active { transform: scale(0.98); }
+button:focus-visible, .btn:focus-within, input:focus-visible, select:focus-visible, canvas:focus-visible, summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px;
+}
+button.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg { display: flex; gap: 2px; padding: 2px; margin-bottom: 14px; background: var(--surface-2); border-radius: 11px; }
+.seg button {
+  flex: 1 1 0; min-width: 0; background: transparent; color: var(--fg); border-radius: 9px; padding: 7px 8px;
+  font-size: 14px; font-weight: 500; min-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.seg button[aria-pressed="true"] { background: var(--seg-thumb); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.04); font-weight: 600; }
+.seg button:hover { opacity: 1; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dot.card { background: var(--card-c); } .dot.tooth { background: var(--tooth-c); } .dot.ref { background: var(--ref-c); }
+.step { font-size: 12px; color: var(--fg-dim); font-weight: 500; }
+.stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; }
+canvas#view { display: block; width: 100%; touch-action: none; cursor: crosshair; }
+.hint { margin: 12px 2px 0; color: var(--fg-dim); font-size: 14px; min-height: 20px; }
+.tips summary { cursor: pointer; font: 600 17px/1.3 var(--font-display); letter-spacing: -0.01em; list-style: none; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; }
+.tips summary::-webkit-details-marker { display: none; }
+.tips summary::after { content: "›"; font-size: 24px; color: var(--fg-dim); transition: transform 0.2s ease; }
+.tips details[open] summary::after { transform: rotate(90deg); }
+.tips ul { margin: 12px 0 0; padding-left: 18px; color: var(--fg-dim); font-size: 15px; }
+.tips li { margin: 5px 0; }
+
+.swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sw { border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.sw .chip { height: 96px; background: var(--surface-2); }
+.sw .cap { padding: 8px 12px; font-size: 13px; color: var(--fg-dim); display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sw .cap b { color: var(--fg); font-family: var(--font-data); font-weight: 500; font-size: 12px; }
+.de-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 20px 0 10px; }
+.de-num { font: 600 60px/1 var(--font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.de-unit { color: var(--fg-dim); font-size: 15px; font-weight: 500; }
+.pill { padding: 4px 12px; border-radius: 99px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, currentColor 14%, transparent); }
+.pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); } .pill.none { color: var(--fg-dim); }
+.scale { position: relative; height: 6px; background: var(--surface-2); border-radius: 3px; margin: 8px 0 26px; }
+.scale .fill { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--fg-dim); }
+.scale .fill.ok { background: var(--ok); } .scale .fill.warn { background: var(--warn); } .scale .fill.bad { background: var(--bad); }
+.scale .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; border-radius: 1px; background: var(--fg); opacity: 0.35; }
+.scale .tick span { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); font: 12px var(--font-body); color: var(--fg-dim); white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 9px 4px; border-bottom: 0.5px solid var(--line); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 500 12px var(--font-body); color: var(--fg-dim); }
+td { font: 15px var(--font-display); }
+td:first-child { color: var(--fg-dim); font-size: 14px; }
+ul.warns { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+ul.warns li { padding: 10px 12px 10px 34px; position: relative; background: var(--surface-2); font-size: 14px; border-radius: 12px; }
+ul.warns li::before { content: ""; position: absolute; left: 14px; top: 17px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+ul.warns li.good::before { background: var(--ok); }
+.mono { font-family: var(--font-data); font-size: 12px; color: var(--fg-dim); }
+.fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fields label, .field { display: grid; gap: 6px; font-size: 13px; color: var(--fg-dim); }
+.fields input, .field input, .field select { width: 100%; color: var(--fg); font-size: 16px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.row > * { min-width: 0; }
+input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 40px; background: transparent; padding: 0; }
+input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }
+input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.note { color: var(--fg-dim); font-size: 13px; line-height: 1.45; margin: 12px 0 0; }
+textarea#csvBox { width: 100%; min-height: 92px; font: 12px/1.45 var(--font-data); color: var(--fg); background: var(--surface-2); border: 0; border-radius: 12px; padding: 12px; resize: vertical; margin-top: 12px; }
+figure.report { margin: 16px 0 0; }
+figure.report img { width: 100%; max-width: 420px; height: auto; border-radius: 12px; display: block; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12); }
+figure.report figcaption { color: var(--fg-dim); font-size: 13px; margin-top: 8px; }
+.empty { color: var(--fg-dim); font-size: 14px; margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .scale .fill { transition: width 0.3s ease; } }
+@media (prefers-reduced-motion: reduce) { button, .btn, .tips summary::after { transition: none; } }
+
+.app { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr); }
+@media (max-width: 880px) { .app { grid-template-columns: minmax(0, 1fr); } }
+:root { --c-ok: #34c759; --c-low: #ffcc00; --c-dentin: #ff453a; --c-den: #e8cf8f; --c-ena: #f6f0e6; --c-cut: #ff9f0a; --c-cer: #0a84ff; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+canvas#view { width: 100%; height: auto; aspect-ratio: 4 / 5; max-height: 560px; display: block; border-radius: 14px; background: var(--surface-2); touch-action: none; cursor: grab; }
+canvas#view:active { cursor: grabbing; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--fg-dim); margin: 10px 0 0; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
+.k-ok { background: var(--c-ok); } .k-low { background: var(--c-low); } .k-dentin { background: var(--c-dentin); }
+.k-dentinbg { background: var(--c-den); } .k-enamel { background: var(--c-ena); } .k-cut { background: var(--c-cut); } .k-cer { background: var(--c-cer); opacity: .6; }
+.zone { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 0 0 10px; background: var(--surface-2); cursor: pointer; }
+.zone.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.zone h3 { margin: 0 0 8px; font: 600 14px var(--font-body); display: flex; justify-content: space-between; gap: 8px; }
+.zone h3 span { font-weight: 500; color: var(--fg-dim); font-size: 12.5px; }
+.sl { display: grid; grid-template-columns: 78px minmax(0, 1fr) 64px; gap: 10px; align-items: center; margin: 6px 0; font-size: 13px; }
+.sl input[type="number"] { width: 64px; padding: 6px 6px; font-size: 13px; text-align: right; }
+.sl input[type="range"] { width: 100%; }
+.fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 14px; align-items: end; }
+@media (max-width: 520px) { .fields.two { grid-template-columns: minmax(0, 1fr); } }
+#section svg { width: 100%; height: auto; display: block; background: var(--surface-2); border-radius: 14px; }
+#section text { font: 11px var(--font-body); fill: var(--fg-dim); }
+#section text.b { fill: var(--fg); font-weight: 600; }
+#resTab td, #resTab th { padding: 8px 6px; font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; vertical-align: top; }
+#resTab td:first-child, #resTab th:first-child { text-align: left; font-weight: 600; }
+.st { font-weight: 600; } .st.ok { color: var(--ok); } .st.low { color: var(--warn); } .st.dentin { color: var(--bad); }
+.hint:empty { display: none; }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Dente 3D com Preparo por Zonas</h1>
+    <p>Gire o dente, ajuste o esmalte e o desgaste em cada terço (cervical, médio e incisal) e veja na hora o esmalte que sobra, a dentina exposta e a espessura final da cerâmica, no modelo 3D e no corte lateral.</p>
+  </header>
+
+  <div class="banner" role="note"><span><strong>Ferramenta de estudo.</strong> O dente é um modelo paramétrico genérico, não o seu paciente. As espessuras iniciais são ilustrativas: use a medida do caso (guia de silicone, sondagem, tomografia). Os dados ficam no seu navegador.</span></div>
+
+  <div class="app">
+    <div class="col">
+      <section class="panel" aria-labelledby="h-dente">
+        <h2 id="h-dente">1. Dente</h2>
+        <div class="seg" id="segTooth" role="group" aria-label="Dente"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-zonas">
+        <h2 id="h-zonas">2. Zonas da face vestibular</h2>
+        <p class="note" style="margin-top:-6px">Toque numa zona no dente 3D ou escolha abaixo. Esmalte é a espessura de partida; desgaste é quanto a fresa remove.</p>
+        <div id="zones"></div>
+        <div class="fields two" id="glob"></div>
+        <div class="btnrow" style="margin-top:12px"><button type="button" id="btnReset">Restaurar valores iniciais</button></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="h-3d">
+        <h2 id="h-3d">3. Dente em 3D</h2>
+        <div class="btnrow" style="margin-bottom:10px">
+          <div class="seg" id="segMode" role="group" aria-label="Modo">
+            <button type="button" data-m="nat" aria-pressed="false">Natural</button>
+            <button type="button" data-m="prep" aria-pressed="true">Preparado</button>
+          </div>
+          <div class="seg" id="segView" role="group" aria-label="Vista">
+            <button type="button" data-y="0" aria-pressed="false">Vestibular</button>
+            <button type="button" data-y="90" aria-pressed="false">Perfil</button>
+            <button type="button" data-y="180" aria-pressed="false">Lingual</button>
+          </div>
+        </div>
+        <canvas id="view" tabindex="0" role="img" aria-label="Dente em 3D. Arraste para girar, toque numa zona para selecioná-la. Setas giram o dente."></canvas>
+        <div class="legend" id="leg3d"><span><i class="k-ok"></i>esmalte restante bom</span><span><i class="k-low"></i>menos de 30% do esmalte</span><span><i class="k-dentin"></i>dentina exposta</span></div>
+        <p class="hint">Arraste para girar. Toque numa zona para selecionar.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-corte">
+        <h2 id="h-corte">4. Corte lateral (vestibular à esquerda)</h2>
+        <div id="section"></div>
+        <div class="legend"><span><i class="k-dentinbg"></i>dentina</span><span><i class="k-enamel"></i>esmalte</span><span><i class="k-cut"></i>removido</span><span><i class="k-cer"></i>cerâmica</span></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-res">
+        <h2 id="h-res">5. Resultado por zona</h2>
+        <div class="tablewrap"><table id="resTab"></table></div>
+        <p class="note" id="incNote"></p>
+        <ul class="warns" id="warns"></ul>
+        <div class="btnrow" style="margin-top:14px"><button type="button" id="btnCopy">Copiar resumo</button></div>
+        <p class="hint" id="copyMsg" role="status"></p>
+      </section>
+
+      <section class="panel tips">
+        <details><summary>Como o cálculo funciona e limites</summary>
+          <ul>
+            <li>Cerâmica = desgaste + acréscimo do mock-up. O acréscimo é o que a lente fica acima do contorno original do dente.</li>
+            <li>Esmalte restante = esmalte inicial menos desgaste. Se o desgaste passa do esmalte, a diferença é dentina exposta.</li>
+            <li>Cores: verde quando sobra pelo menos 30% do esmalte, amarelo quando sobra menos que isso, vermelho quando há dentina exposta.</li>
+            <li>O desgaste muda de forma suave entre as zonas no 3D. A tabela mostra o valor de cada zona.</li>
+            <li>O formato do dente é uma aproximação feita por perfis e seções arredondadas. Cada dente real tem formato, inclinação e espessuras próprias.</li>
+            <li>O corte mostra o plano mesiodistal central, de forma esquemática. A espessura do esmalte na face lingual segue o mesmo valor, só para o desenho.</li>
+            <li>O app não indica a quantidade de desgaste correta para um caso. Ele só calcula as consequências dos números que você informa.</li>
+          </ul>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+"use strict";
+// ---------- Modelo do dente 3D e do preparo por zonas ----------
+// Unidades em mm. t = posição ao longo da coroa: 0 no colo (cervical), 1 na borda incisal.
+var TEETH = {
+  inc_central: { name: 'Incisivo central superior', H: 10.5, root: 13,
+    rx: [[0, 3.1], [0.3, 3.7], [0.7, 4.15], [1, 4.0]], ry: [[0, 3.3], [0.3, 3.0], [0.7, 2.2], [1, 1.0]] },
+  inc_lateral: { name: 'Incisivo lateral superior', H: 9.0, root: 13,
+    rx: [[0, 2.5], [0.3, 3.0], [0.7, 3.3], [1, 3.1]], ry: [[0, 3.0], [0.3, 2.7], [0.7, 2.0], [1, 0.9]] },
+  canino: { name: 'Canino superior', H: 10.0, root: 16,
+    rx: [[0, 3.0], [0.3, 3.5], [0.7, 3.8], [1, 1.2]], ry: [[0, 3.8], [0.3, 3.6], [0.7, 3.1], [1, 1.4]] }
+};
+var ZONES = [{ k: 'C', n: 'Cervical', t0: 0, t1: 1 / 3 }, { k: 'M', n: 'Médio', t0: 1 / 3, t1: 2 / 3 }, { k: 'I', n: 'Incisal', t0: 2 / 3, t1: 1 }];
+var DEFAULTS = { en: { C: 0.4, M: 0.8, I: 1.2 }, red: { C: 0.2, M: 0.5, I: 0.7 }, ad: 0.3, inc: 1.0, minCer: 0.5 };
+function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+function interp(tab, t) {
+  t = clamp(t, 0, 1);
+  for (var i = 1; i < tab.length; i++) if (t <= tab[i][0]) { var a = tab[i - 1], b = tab[i]; return a[1] + (b[1] - a[1]) * (t - a[0]) / (b[0] - a[0]); }
+  return tab[tab.length - 1][1];
+}
+function zoneOf(t) { return t < 1 / 3 ? 'C' : t < 2 / 3 ? 'M' : 'I'; }
+// valor suave por zona: interpola entre os centros das zonas (1/6, 1/2, 5/6)
+function zoneValue(vals, t) {
+  var c = [1 / 6, 0.5, 5 / 6], v = [vals.C, vals.M, vals.I];
+  if (t <= c[0]) return v[0]; if (t >= c[2]) return v[2];
+  var i = t < c[1] ? 0 : 1; return v[i] + (v[i + 1] - v[i]) * (t - c[i]) / (c[i + 1] - c[i]);
+}
+// avalia cada zona: desgaste, esmalte restante, dentina exposta, cerâmica
+function evaluate(p) {
+  return ZONES.map(function (z) {
+    var en = p.en[z.k], red = p.red[z.k], rem = en - red, cer = red + p.ad;
+    var dentin = Math.max(0, red - en);
+    var pctLeft = en > 0 ? clamp(rem, 0, en) / en * 100 : 0;
+    var status = dentin > 1e-9 ? 'dentin' : (en > 0 && rem / en < 0.3 - 1e-9) ? 'low' : 'ok';
+    return { k: z.k, name: z.n, en: en, red: red, rem: rem, dentin: dentin, pctLeft: pctLeft, cer: cer, status: status, thin: cer < p.minCer - 1e-9 };
+  });
+}
+function incisalInfo(tooth, p) { var T = TEETH[tooth]; return { red: p.inc, pct: p.inc / T.H * 100, tCut: 1 - p.inc / T.H }; }
+function sp(v, e) { return (v < 0 ? -1 : 1) * Math.pow(Math.abs(v), e); }
+// ponto da superfície (mm). th: ângulo ao redor (π/2 = vestibular). t pode ser negativo (raiz).
+function surfacePoint(tooth, t, th, prep, p) {
+  var T = TEETH[tooth], rx, ry, z;
+  if (t >= 0) {
+    rx = interp(T.rx, t); ry = interp(T.ry, t); z = t * T.H;
+    if (prep) { var tc = 1 - p.inc / T.H; z = Math.min(t, tc) * T.H; }
+  } else {
+    var u = -t; var k = Math.pow(u, 1.4); rx = T.rx[0][1] * (1 - 0.18 * u - 0.72 * k); ry = T.ry[0][1] * (1 - 0.15 * u - 0.75 * k);
+    z = t * T.root; // t em [-1,0]: -1 é o ápice
+  }
+  var c = Math.cos(th), s = Math.sin(th), e = 2 / 2.5;
+  var x = rx * sp(c, e), y = ry * sp(s, e);
+  if (prep && t >= 0 && s > 0) {
+    var w = clamp((s - 0.15) / 0.6, 0, 1), r = zoneValue(p.red, t);
+    y -= r * w;
+  }
+  return { x: x, y: y, z: z };
+}
+// malha de quadriláteros: rows x cols
+function buildMesh(tooth, prep, p, nT, nA) {
+  nT = nT || 24; nA = nA || 40;
+  var ts = []; var rootRows = 6;
+  for (var i = 0; i <= rootRows; i++) ts.push(-1 + i / rootRows);
+  for (var j = 1; j <= nT; j++) ts.push(j / nT);
+  var V = [];
+  ts.forEach(function (t) { var row = []; for (var a = 0; a < nA; a++) row.push(surfacePoint(tooth, t, a / nA * Math.PI * 2, prep, p)); V.push(row); });
+  var Q = [];
+  for (var r = 0; r < ts.length - 1; r++) for (var a2 = 0; a2 < nA; a2++) {
+    var a3 = (a2 + 1) % nA, tm = (ts[r] + ts[r + 1]) / 2, th = (a2 + 0.5) / nA * Math.PI * 2;
+    Q.push({ v: [V[r][a2], V[r][a3], V[r + 1][a3], V[r + 1][a2]], t: tm, th: th, vest: Math.sin(th) > 0.15 && tm >= 0, root: tm < 0 });
+  }
+  return Q;
+}
+// perfil sagital (plano mesiodistal central): contorno vestibular e lingual da coroa
+function sectionProfile(tooth, p, n) {
+  n = n || 30; var T = TEETH[tooth], out = [];
+  for (var i = 0; i <= n; i++) {
+    var t = i / n, ry = interp(T.ry, t), enam = zoneValue(p.en, t), red = zoneValue(p.red, t);
+    out.push({ t: t, z: t * T.H, vOut: ry, lOut: -ry, vEnamel: ry - enam, vPrep: ry - red, vCer: ry - red + red + p.ad });
+  }
+  return out;
+}
+function summaryText(tooth, p) {
+  var rows = evaluate(p), T = TEETH[tooth];
+  var f = function (x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); };
+  var L = [T.name + ': preparo vestibular por zonas (planejamento educacional)'];
+  rows.forEach(function (r) {
+    L.push(r.name + ': esmalte ' + f(r.en) + ' mm, desgaste ' + f(r.red) + ' mm, esmalte restante ' + f(Math.max(0, r.rem)) + ' mm (' + Math.round(r.pctLeft) + '%)' +
+      (r.dentin > 0 ? ', dentina exposta ' + f(r.dentin) + ' mm' : '') + ', cerâmica ' + f(r.cer) + ' mm' + (r.thin ? ' (abaixo do mínimo)' : ''));
+  });
+  L.push('Redução incisal: ' + f(p.inc) + ' mm (' + Math.round(p.inc / T.H * 100) + '% da coroa)');
+  return L.join('\n');
+}
+
+// ---------- Interface ----------
+function $(id) { return document.getElementById(id); }
+function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+function svg(tag, attrs, txt) { var e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (txt !== undefined) e.textContent = txt; return e; }
+function f2(x) { return (Math.round(x * 100) / 100).toFixed(2).replace('.', ','); }
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+var STATUS_TXT = { ok: 'Esmalte preservado', low: 'Pouco esmalte', dentin: 'Dentina exposta' };
+var COL = { ok: [52, 199, 89], low: [255, 204, 0], dentin: [255, 69, 58] };
+var ENAMEL = [246, 238, 222], ROOT = [226, 206, 168];
+var state = { tooth: 'inc_central', p: clone(DEFAULTS), mode: 'prep', yaw: 0.45, pitch: 0.12, sel: 'M' };
+var inputs = {}; var quadsDrawn = [];
+
+function build() {
+  var seg = $('segTooth');
+  Object.keys(TEETH).forEach(function (k) {
+    var b = el('button', '', TEETH[k].name.replace(' superior', '')); b.type = 'button'; b.setAttribute('aria-pressed', k === state.tooth ? 'true' : 'false');
+    b.onclick = function () { state.tooth = k; Array.prototype.forEach.call(seg.children, function (c) { c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); }); render(); };
+    seg.appendChild(b);
+  });
+  ZONES.forEach(function (z) {
+    var card = el('div', 'zone'); card.id = 'zone' + z.k;
+    var h = el('h3'); h.appendChild(el('b', '', z.n)); h.appendChild(el('span', '', ''));
+    card.appendChild(h);
+    card.appendChild(slider('en', z.k, 'Esmalte', 0, 2, 0.05, state.p.en[z.k]));
+    card.appendChild(slider('red', z.k, 'Desgaste', 0, 2, 0.05, state.p.red[z.k]));
+    card.onclick = function () { state.sel = z.k; render(); };
+    $('zones').appendChild(card);
+  });
+  var g = $('glob');
+  g.appendChild(gfield('ad', 'Acréscimo do mock-up (mm)', 0, 1, 0.05));
+  g.appendChild(gfield('inc', 'Redução incisal (mm)', 0, 3, 0.1));
+  g.appendChild(gfield('minCer', 'Cerâmica mínima (mm)', 0.2, 1.5, 0.05));
+  $('btnReset').onclick = function () { state.p = clone(DEFAULTS); syncInputs(); render(); };
+  Array.prototype.forEach.call($('segMode').children, function (b) { b.onclick = function () { state.mode = b.getAttribute('data-m'); render(); }; });
+  Array.prototype.forEach.call($('segView').children, function (b) { b.onclick = function () { state.yaw = parseFloat(b.getAttribute('data-y')) * Math.PI / 180; state.pitch = 0.1; render(); }; });
+  $('btnCopy').onclick = copy;
+  bindCanvas();
+}
+function numOf(v, mn, mx) { var x = parseFloat(String(v).replace(',', '.')); if (isNaN(x)) return null; return clamp(x, mn, mx); }
+function slider(grp, k, label, mn, mx, st, val) {
+  var row = el('div', 'sl'); row.appendChild(el('span', '', label));
+  var r = el('input'); r.type = 'range'; r.min = mn; r.max = mx; r.step = st; r.value = val; r.setAttribute('aria-label', label + ' ' + k + ' em mm');
+  var n = el('input'); n.type = 'number'; n.min = 0; n.max = 3; n.step = st; n.value = val; n.setAttribute('aria-label', label + ' ' + k + ' em mm (número)');
+  r.oninput = function () { state.p[grp][k] = parseFloat(r.value); n.value = r.value; state.sel = k; render(); };
+  n.onchange = function () { var v = numOf(n.value, 0, 3); if (v === null) v = state.p[grp][k]; state.p[grp][k] = v; r.value = v; n.value = v; state.sel = k; render(); };
+  inputs[grp + k] = { r: r, n: n, grp: grp, k: k };
+  row.appendChild(r); row.appendChild(n); return row;
+}
+function gfield(key, label, mn, mx, st) {
+  var l = el('label'); l.appendChild(document.createTextNode(label));
+  var n = el('input'); n.type = 'number'; n.min = mn; n.max = mx; n.step = st; n.value = state.p[key];
+  n.onchange = function () { var v = numOf(n.value, mn, mx); if (v === null) v = state.p[key]; state.p[key] = v; n.value = v; render(); };
+  inputs[key] = { n: n, key: key }; l.appendChild(n); return l;
+}
+function syncInputs() {
+  Object.keys(inputs).forEach(function (id) { var i = inputs[id]; if (i.r) { var v = state.p[i.grp][i.k]; i.r.value = v; i.n.value = v; } else i.n.value = state.p[i.key]; });
+}
+
+// ---- 3D ----
+function mix(a, b, w) { return [a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2] + (b[2] - a[2]) * w]; }
+function rgb(c, s) { return 'rgb(' + Math.round(clamp(c[0] * s, 0, 255)) + ',' + Math.round(clamp(c[1] * s, 0, 255)) + ',' + Math.round(clamp(c[2] * s, 0, 255)) + ')'; }
+function draw3d() {
+  var cv = $('view'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  var W = cv.clientWidth || 360, H = Math.round(W * 1.25);
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  var prep = state.mode === 'prep', p = state.p, T = TEETH[state.tooth];
+  var mesh = buildMesh(state.tooth, prep, p, 28, 44), ev = evaluate(p);
+  var stat = {}; ev.forEach(function (r) { stat[r.k] = r.status; });
+  var cy = Math.cos(state.yaw), sy = Math.sin(state.yaw), cp = Math.cos(state.pitch), sp = Math.sin(state.pitch);
+  var totalH = T.H + T.root, scale = H * 0.86 / totalH, midZ = (T.H - T.root) / 2;
+  function tr(v) {
+    var x1 = v.x * cy - v.y * sy, y1 = v.x * sy + v.y * cy;
+    var d = y1 * cp - (v.z - midZ) * sp, up = y1 * sp + (v.z - midZ) * cp;
+    return { sx: W / 2 + x1 * scale, sy: H / 2 + up * scale, d: d, x: x1, y: y1, z: v.z };
+  }
+  var L = [-0.45, 0.55, 0.7], ln = Math.sqrt(L[0] * L[0] + L[1] * L[1] + L[2] * L[2]);
+  var list = [];
+  mesh.forEach(function (q) {
+    var pts = q.v.map(tr), ax = pts[1].sx - pts[0].sx, ay = pts[1].sy - pts[0].sy, bx = pts[3].sx - pts[0].sx, by = pts[3].sy - pts[0].sy;
+    // normal em espaço de vista a partir de 3 pontos (x, up, depth)
+    var u = [pts[1].x - pts[0].x, (pts[1].sy - pts[0].sy) / scale, pts[1].d - pts[0].d], w = [pts[3].x - pts[0].x, (pts[3].sy - pts[0].sy) / scale, pts[3].d - pts[0].d];
+    var n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    var nl = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]) || 1; n = [n[0] / nl, n[1] / nl, n[2] / nl];
+    // converte: eixo "up" de tela cresce para baixo; ajusta sinal para apontar ao observador
+    if (n[2] < 0) n = [-n[0], -n[1], -n[2]];
+    var depth = (pts[0].d + pts[1].d + pts[2].d + pts[3].d) / 4;
+    list.push({ q: q, pts: pts, n: n, depth: depth });
+  });
+  list.sort(function (a, b) { return a.depth - b.depth; });
+  quadsDrawn = [];
+  list.forEach(function (it) {
+    var q = it.q, n = it.n, lam = Math.max(0, (n[0] * L[0] + (-n[1]) * L[1] + n[2] * L[2]) / ln);
+    var sh = 0.55 + 0.5 * lam, base = q.root ? ROOT : ENAMEL, col = base;
+    if (q.vest && prep) col = mix(base, COL[stat[zoneOf(q.t)]], 0.62);
+    else if (q.vest && q.t >= 0 && zoneOf(q.t) === state.sel) col = mix(base, [10, 132, 255], 0.22);
+    if (q.vest && prep && zoneOf(q.t) === state.sel) sh *= 1.08;
+    var s = rgb(col, sh);
+    ctx.beginPath(); it.pts.forEach(function (pt, i) { if (i) ctx.lineTo(pt.sx, pt.sy); else ctx.moveTo(pt.sx, pt.sy); }); ctx.closePath();
+    ctx.fillStyle = s; ctx.fill(); ctx.strokeStyle = s; ctx.lineWidth = 0.7; ctx.stroke();
+    quadsDrawn.push(it);
+  });
+  // destaque da zona selecionada: linhas nos limites
+  ctx.fillStyle = 'rgba(0,0,0,0.0)';
+}
+function inPoly(pts, x, y) {
+  var c = false;
+  for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    if (((pts[i].sy > y) !== (pts[j].sy > y)) && (x < (pts[j].sx - pts[i].sx) * (y - pts[i].sy) / (pts[j].sy - pts[i].sy) + pts[i].sx)) c = !c;
+  }
+  return c;
+}
+function bindCanvas() {
+  var cv = $('view'), drag = null;
+  cv.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, moved: 0 }; try { cv.setPointerCapture(e.pointerId); } catch (x) { } });
+  cv.addEventListener('pointermove', function (e) {
+    if (!drag) return; var dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy);
+    state.yaw += dx * 0.01; state.pitch = clamp(state.pitch + dy * 0.008, -1.0, 1.0); drag.x = e.clientX; drag.y = e.clientY; draw3d();
+  });
+  cv.addEventListener('pointerup', function (e) {
+    if (drag && drag.moved < 5) {
+      var r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      for (var i = quadsDrawn.length - 1; i >= 0; i--) { var it = quadsDrawn[i]; if (inPoly(it.pts, x, y)) { if (it.q.t >= 0) { state.sel = zoneOf(it.q.t); render(); } break; } }
+    }
+    drag = null;
+  });
+  cv.addEventListener('keydown', function (e) {
+    var k = e.key; if (k === 'ArrowLeft') state.yaw -= 0.12; else if (k === 'ArrowRight') state.yaw += 0.12; else if (k === 'ArrowUp') state.pitch = clamp(state.pitch - 0.1, -1, 1); else if (k === 'ArrowDown') state.pitch = clamp(state.pitch + 0.1, -1, 1); else return;
+    e.preventDefault(); draw3d();
+  });
+  window.addEventListener('resize', draw3d);
+}
+
+// ---- corte lateral ----
+function drawSection() {
+  var p = state.p, T = TEETH[state.tooth], prof = sectionProfile(state.tooth, p, 36), ev = evaluate(p);
+  var s = 28, cx = 262, top = 44, Wd = 420, Ht = top + T.H * s + 44;
+  var X = function (y) { return cx - y * s; }, Y = function (z) { return top + z * s; };
+  var root = svg('svg', { viewBox: '0 0 ' + Wd + ' ' + Ht, role: 'img', 'aria-label': 'Corte lateral do dente com esmalte, dentina, desgaste e cerâmica' });
+  function poly(pts, attrs) { return svg('path', Object.assign({ d: 'M' + pts.map(function (q) { return q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join(' L') + ' Z' }, attrs)); }
+  var outerV = prof.map(function (q) { return [X(q.vOut), Y(q.z)]; }), outerL = prof.map(function (q) { return [X(q.lOut), Y(q.z)]; }).reverse();
+  root.appendChild(poly(outerV.concat(outerL), { fill: 'var(--c-den)', stroke: 'none' }));
+  // esmalte: faixas vestibular e lingual
+  var enV = prof.map(function (q) { return [X(q.vEnamel), Y(q.z)]; }).reverse(), enL = prof.map(function (q) { return [X(q.lOut + zoneValue(p.en, q.t)), Y(q.z)]; });
+  root.appendChild(poly(outerV.concat(enV), { fill: 'var(--c-ena)', stroke: 'none' }));
+  root.appendChild(poly(prof.map(function (q) { return [X(q.lOut), Y(q.z)]; }).concat(enL.slice().reverse()), { fill: 'var(--c-ena)', stroke: 'none' }));
+  // removido por zona
+  ZONES.forEach(function (z, zi) {
+    var seg = prof.filter(function (q) { return q.t >= z.t0 - 1e-9 && q.t <= z.t1 + 1e-9; });
+    var a = seg.map(function (q) { return [X(q.vOut), Y(q.z)]; }), b = seg.map(function (q) { return [X(q.vPrep), Y(q.z)]; }).reverse();
+    var c = COL[ev[zi].status];
+    root.appendChild(poly(a.concat(b), { fill: 'rgb(' + c.join(',') + ')', 'fill-opacity': 0.8, stroke: 'none' }));
+  });
+  // cerâmica
+  var cerO = prof.map(function (q) { return [X(q.vCer), Y(q.z)]; }), cerI = prof.map(function (q) { return [X(q.vPrep), Y(q.z)]; }).reverse();
+  root.appendChild(poly(cerO.concat(cerI), { fill: 'var(--c-cer)', 'fill-opacity': 0.35, stroke: 'var(--c-cer)', 'stroke-width': 1.2 }));
+  // contorno do dente
+  root.appendChild(svg('path', { d: 'M' + outerV.concat(outerL).map(function (q) { return q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join(' L') + ' Z', fill: 'none', stroke: 'var(--fg-dim)', 'stroke-width': 1 }));
+  // redução incisal
+  if (p.inc > 0) {
+    var zc = Math.max(0, T.H - p.inc), tc = zc / T.H, ry = interp(T.ry, tc);
+    root.appendChild(poly([[X(ry), Y(zc)], [X(-ry), Y(zc)], [X(-interp(T.ry, 1)), Y(T.H)], [X(interp(T.ry, 1)), Y(T.H)]], { fill: 'var(--c-cut)', 'fill-opacity': 0.55, stroke: 'var(--c-cut)', 'stroke-dasharray': '4 3' }));
+    root.appendChild(svg('text', { x: X(-interp(T.ry, 1)) + 10, y: Y(T.H) + 16, class: 'b' }, 'Incisal −' + f2(p.inc).replace(',00', ',0') + ' mm'));
+  }
+  // rótulos por zona
+  ZONES.forEach(function (z, zi) {
+    var zc = (z.t0 + z.t1) / 2 * T.H, r = ev[zi], yy = Y(zc), px = X(interp(T.ry, (z.t0 + z.t1) / 2));
+    root.appendChild(svg('line', { x1: 150, y1: yy, x2: px - 3, y2: yy, stroke: 'var(--line)', 'stroke-width': 1 }));
+    var sel = state.sel === z.k;
+    root.appendChild(svg('text', { x: 6, y: yy - 11, class: 'b' }, z.n + (sel ? ' (selecionada)' : '')));
+    root.appendChild(svg('text', { x: 6, y: yy + 3 }, 'esmalte ' + f2(r.en) + ' | desgaste ' + f2(r.red)));
+    root.appendChild(svg('text', { x: 6, y: yy + 16 }, 'cerâmica ' + f2(r.cer) + ' mm'));
+  });
+  root.appendChild(svg('text', { x: X(3.2), y: 18, 'text-anchor': 'middle' }, 'vestibular'));
+  root.appendChild(svg('text', { x: X(-3.2), y: 18, 'text-anchor': 'middle' }, 'lingual'));
+  var host = $('section'); host.textContent = ''; host.appendChild(root);
+}
+
+// ---- tabela e avisos ----
+function renderTable() {
+  var ev = evaluate(state.p), t = $('resTab'); t.textContent = '';
+  var hd = el('tr'); ['Zona', 'Esmalte', 'Desgaste', 'Resta', 'Cerâmica', 'Situação'].forEach(function (h) { hd.appendChild(el('th', '', h)); }); t.appendChild(hd);
+  ev.forEach(function (r) {
+    var tr = el('tr');
+    tr.appendChild(el('td', '', r.name));
+    tr.appendChild(el('td', '', f2(r.en) + ' mm'));
+    tr.appendChild(el('td', '', f2(r.red) + ' mm'));
+    tr.appendChild(el('td', '', f2(Math.max(0, r.rem)) + ' mm (' + Math.round(r.pctLeft) + '%)'));
+    tr.appendChild(el('td', '', f2(r.cer) + ' mm'));
+    tr.appendChild(el('td', 'st ' + r.status, STATUS_TXT[r.status]));
+    t.appendChild(tr);
+  });
+  var inc = incisalInfo(state.tooth, state.p);
+  $('incNote').textContent = 'Redução incisal: ' + f2(inc.red) + ' mm, cerca de ' + Math.round(inc.pct) + '% da altura da coroa.';
+  var w = $('warns'); w.textContent = '';
+  ev.forEach(function (r) {
+    if (r.status === 'dentin') w.appendChild(el('li', '', r.name + ': o desgaste passa do esmalte em ' + f2(r.dentin) + ' mm. Nessa área a cimentação será em dentina, e a adesão ao esmalte se perde.'));
+    else if (r.status === 'low') w.appendChild(el('li', '', r.name + ': sobra ' + Math.round(r.pctLeft) + '% do esmalte (menos de 30%). Confira a espessura real antes de preparar.'));
+    if (r.thin) w.appendChild(el('li', '', r.name + ': cerâmica de ' + f2(r.cer) + ' mm, abaixo do mínimo de ' + f2(state.p.minCer) + ' mm informado. O mínimo real depende do material e da técnica.'));
+  });
+  if (!w.children.length) { var g = el('li', 'good', 'Nenhum alerta com os valores atuais.'); w.appendChild(g); }
+}
+function renderZones() {
+  var ev = evaluate(state.p);
+  ZONES.forEach(function (z, i) {
+    var c = $('zone' + z.k); c.className = 'zone' + (state.sel === z.k ? ' sel' : '');
+    c.querySelector('h3 span').textContent = 'resta ' + f2(Math.max(0, ev[i].rem)) + ' mm de esmalte';
+  });
+}
+function renderSegs() {
+  Array.prototype.forEach.call($('segMode').children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-m') === state.mode ? 'true' : 'false'); });
+  var yd = Math.round(((state.yaw * 180 / Math.PI) % 360 + 360) % 360);
+  Array.prototype.forEach.call($('segView').children, function (b) { b.setAttribute('aria-pressed', parseInt(b.getAttribute('data-y'), 10) === yd ? 'true' : 'false'); });
+}
+function copy() {
+  var tx = summaryText(state.tooth, state.p), m = $('copyMsg');
+  function done(ok) { m.textContent = ok ? 'Resumo copiado.' : 'Não foi possível copiar. Selecione e copie manualmente.'; setTimeout(function () { m.textContent = ''; }, 2500); }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tx).then(function () { done(true); }, function () { fallback(); }); else fallback();
+  function fallback() { var ta = el('textarea'); ta.value = tx; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) { } document.body.removeChild(ta); done(ok); }
+}
+function render() { renderSegs(); renderZones(); renderTable(); drawSection(); draw3d(); }
+build(); render();
+
+})();
+</script>
+</body>
+</html>
